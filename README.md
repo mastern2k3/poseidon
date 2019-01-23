@@ -15,7 +15,7 @@ import (
 
 	"github.com/heroiclabs/nakama/runtime"
 
-	"github.com/mastern2k3/poseidon/runtime/storage"
+	"github.com/mastern2k3/poseidon/storage"
 )
 
 var (
