@@ -9,12 +9,10 @@
 Allows for more fluent use of Nakama's storage collections, taking care of json marshalling and unmarshalling, default values and bulk reads.
 
 ```go
-
 import (
 	"context"
 
 	"github.com/heroiclabs/nakama/runtime"
-
 	"github.com/mastern2k3/poseidon/storage"
 )
 
@@ -22,8 +20,8 @@ var (
 	statsAccessor = &storage.CollectionAccessor{
 		CollectionID: "stats",
         KeyID:        "matchesPlayed",
-        // An empty model used for deserializing
-        ModelFactory: func() interface{} { return &MatchStats{} },
+        // An empty model used for unmarhalling
+        ModelFactory: func() interface{} { return new(*MatchStats) },
         // A default value for when a record does not exist
         DefaultFactory: func() interface{} {
 			return &MatchStats{
