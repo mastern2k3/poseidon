@@ -1,6 +1,6 @@
 
 # poseidon
-> Extended apis and utilities on top of Nakama's api
+> Opinionated extended apis on top of Nakama's api
 
 ## Features
 
