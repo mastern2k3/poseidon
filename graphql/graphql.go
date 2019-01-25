@@ -19,6 +19,27 @@ const (
 )
 
 var (
+	storageType = graphql.NewObject(graphql.ObjectConfig{
+		Name:        "StorageObject",
+		Description: "A storage object persisted on Nakama.",
+		Fields: graphql.Fields{
+			"key": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The key defining the stored object.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(*api.StorageObject).GetKey(), nil
+				},
+			},
+			"value": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The value stored in the object.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(*api.StorageObject).GetValue(), nil
+				},
+			},
+		},
+	})
+
 	accountType = graphql.NewObject(graphql.ObjectConfig{
 		Name:        "Account",
 		Description: "A registered Nakama user account.",
@@ -46,6 +67,7 @@ var (
 			},
 		},
 	})
+
 	userType = graphql.NewObject(graphql.ObjectConfig{
 		Name:        "User",
 		Description: "A registered Nakama user.",
@@ -74,6 +96,23 @@ var (
 						return nil, err
 					}
 					return acc, nil
+				},
+			},
+			"storage": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(storageType))),
+				Args: graphql.FieldConfigArgument{
+					"collection": &graphql.ArgumentConfig{
+						Type: graphql.NewNonNull(graphql.String),
+					},
+				},
+				Description: "The account of the user.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					objs, _, err := nk.StorageList(p.Context, p.Source.(*api.User).GetId(), p.Args["collection"].(string), 10, "")
+					if err != nil {
+						return nil, err
+					}
+					return objs, nil
 				},
 			},
 		},
