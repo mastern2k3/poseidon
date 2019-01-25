@@ -19,6 +19,33 @@ const (
 )
 
 var (
+	accountType = graphql.NewObject(graphql.ObjectConfig{
+		Name:        "Account",
+		Description: "A registered Nakama user account.",
+		Fields: graphql.Fields{
+			"customId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The custom id of the account.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(*api.Account).GetCustomId(), nil
+				},
+			},
+			"email": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The email of the account.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(*api.Account).GetEmail(), nil
+				},
+			},
+			"wallet": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The wallet of the account.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(*api.Account).GetWallet(), nil
+				},
+			},
+		},
+	})
 	userType = graphql.NewObject(graphql.ObjectConfig{
 		Name:        "User",
 		Description: "A registered Nakama user.",
@@ -31,10 +58,22 @@ var (
 				},
 			},
 			"username": &graphql.Field{
-				Type:        graphql.String,
+				Type:        graphql.NewNonNull(graphql.String),
 				Description: "The username of the user.",
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					return p.Source.(*api.User).GetUsername(), nil
+				},
+			},
+			"account": &graphql.Field{
+				Type:        graphql.NewNonNull(accountType),
+				Description: "The account of the user.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					acc, err := nk.AccountGetId(p.Context, p.Source.(*api.User).GetId())
+					if err != nil {
+						return nil, err
+					}
+					return acc, nil
 				},
 			},
 		},
@@ -45,8 +84,6 @@ var (
 			Type: userType,
 			Args: graphql.FieldConfigArgument{
 				"username": &graphql.ArgumentConfig{
-					// Description: "If omitted, returns the hero of the whole saga. If " +
-					// 	"provided, returns the hero of that particular episode.",
 					Type: graphql.NewNonNull(graphql.String),
 				},
 			},
