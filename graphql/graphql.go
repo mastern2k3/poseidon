@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/graphql-go/graphql"
 	"github.com/heroiclabs/nakama/api"
@@ -18,7 +19,112 @@ const (
 	GRAPHQL_CTX_NAKAMA_MODULE ContextKey = "nakama_module"
 )
 
+type ledgerItemChangesetItem = struct {
+	key   string
+	value float64
+}
+
+type ledgerItemMetadataItem = struct {
+	key   string
+	value string
+}
+
 var (
+	ledgerItemChangesetItemType = graphql.NewObject(graphql.ObjectConfig{
+		Name: "LedgerItemChangesetItem",
+		// Description: "A storage object persisted on Nakama.",
+		Fields: graphql.Fields{
+			"key": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(ledgerItemChangesetItem).key, nil
+				},
+			},
+			"value": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.Float),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(ledgerItemChangesetItem).value, nil
+				},
+			},
+		},
+	})
+
+	ledgerItemMetadataItemType = graphql.NewObject(graphql.ObjectConfig{
+		Name: "LedgerItemMetadataItem",
+		// Description: "A storage object persisted on Nakama.",
+		Fields: graphql.Fields{
+			"key": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(ledgerItemChangesetItem).key, nil
+				},
+			},
+			"value": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.String),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(ledgerItemChangesetItem).value, nil
+				},
+			},
+		},
+	})
+
+	ledgerItemType = graphql.NewObject(graphql.ObjectConfig{
+		Name: "LedgerItem",
+		// Description: "A storage object persisted on Nakama.",
+		Fields: graphql.Fields{
+			"id": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The ledger item Id.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return p.Source.(runtime.WalletLedgerItem).GetID(), nil
+				},
+			},
+			"createTime": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.DateTime),
+				Description: "The ledger item creation time.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return time.Unix(p.Source.(runtime.WalletLedgerItem).GetCreateTime(), 0), nil
+				},
+			},
+			"updateTime": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.DateTime),
+				Description: "The ledger update time.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					return time.Unix(p.Source.(runtime.WalletLedgerItem).GetUpdateTime(), 0), nil
+				},
+			},
+			"changeset": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(ledgerItemChangesetItemType))),
+				Description: "The ledger item changeset.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					changeset := []ledgerItemChangesetItem{}
+					for k, v := range p.Source.(runtime.WalletLedgerItem).GetChangeset() {
+						changeset = append(changeset, ledgerItemChangesetItem{k, v.(float64)})
+					}
+					return changeset, nil
+				},
+			},
+			"metadata": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(ledgerItemMetadataItemType))),
+				Description: "The ledger item metadata.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					metadata := []ledgerItemMetadataItem{}
+					for k, v := range p.Source.(runtime.WalletLedgerItem).GetMetadata() {
+						metadata = append(metadata, ledgerItemMetadataItem{k, v.(string)})
+					}
+					return metadata, nil
+				},
+			},
+			// "user": &graphql.Field{
+			// 	Type:        graphql.NewNonNull(graphql.String),
+			// 	Description: "The ledger item Id.",
+			// 	Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// 		return p.Source.(runtime.WalletLedgerItem).GetUserID(), nil
+			// 	},
+			// },
+		},
+	})
+
 	storageType = graphql.NewObject(graphql.ObjectConfig{
 		Name:        "StorageObject",
 		Description: "A storage object persisted on Nakama.",
@@ -115,33 +221,48 @@ var (
 					return objs, nil
 				},
 			},
+			"ledger": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(ledgerItemType))),
+				Description: "The user's wallet transaction ledger.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					items, err := nk.WalletLedgerList(p.Context, p.Source.(*api.User).GetId())
+					if err != nil {
+						return nil, err
+					}
+					return items, nil
+				},
+			},
 		},
 	})
 
-	fields = graphql.Fields{
-		"userByUsername": &graphql.Field{
-			Type: userType,
-			Args: graphql.FieldConfigArgument{
-				"username": &graphql.ArgumentConfig{
-					Type: graphql.NewNonNull(graphql.String),
+	rootQuery = graphql.NewObject(graphql.ObjectConfig{
+		Name: "RootQuery",
+		Fields: graphql.Fields{
+			"userByUsername": &graphql.Field{
+				Type: userType,
+				Args: graphql.FieldConfigArgument{
+					"username": &graphql.ArgumentConfig{
+						Type: graphql.NewNonNull(graphql.String),
+					},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					usernameParam := p.Args["username"].(string)
+					users, err := nk.UsersGetUsername(p.Context, []string{usernameParam})
+					if err != nil {
+						return nil, err
+					}
+					if len(users) < 1 {
+						return nil, fmt.Errorf("no user with username `%s`", usernameParam)
+					}
+					return users[0], nil
 				},
 			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
-				usernameParam := p.Args["username"].(string)
-				users, err := nk.UsersGetUsername(p.Context, []string{usernameParam})
-				if err != nil {
-					return nil, err
-				}
-				if len(users) < 1 {
-					return nil, fmt.Errorf("no user with username `%s`", usernameParam)
-				}
-				return users[0], nil
-			},
 		},
-	}
-	rootQuery    = graphql.ObjectConfig{Name: "RootQuery", Fields: fields}
-	schemaConfig = graphql.SchemaConfig{Query: graphql.NewObject(rootQuery)}
+	})
+
+	schemaConfig = graphql.SchemaConfig{Query: rootQuery}
 	schema       graphql.Schema
 )
 
@@ -150,6 +271,10 @@ var (
 		&rpc.JsonRoute{"graphql", func() interface{} { return new(GraphQLRequest) }, query},
 	}
 )
+
+func ConfigureRootQuery(reg func(rootQuery *graphql.Object) error) error {
+	return reg(rootQuery)
+}
 
 func RegisterGraphQL(init runtime.Initializer) error {
 	var err error
