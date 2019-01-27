@@ -1,6 +1,6 @@
 
 # poseidon
-> Opinionated extended apis on top of Nakama's api
+> Opinionated extended apis and tools on top of the Nakama server
 
 ## Features
 
@@ -113,3 +113,9 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 	}
 }
 ```
+
+## GraphQL endpoint with bundled GraphiQL interface
+
+Provides a GraphQL endpoint and bundled GraphQL ui for easy browsing of the server data.
+
+![QraphiQL UI](docs/imgs/graphiql.png)

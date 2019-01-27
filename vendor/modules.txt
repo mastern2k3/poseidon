@@ -1,3 +1,11 @@
+# github.com/gobuffalo/envy v1.6.12
+github.com/gobuffalo/envy
+# github.com/gobuffalo/packd v0.0.0-20181212173646-eca3b8fd6687
+github.com/gobuffalo/packd
+# github.com/gobuffalo/packr v1.21.9
+github.com/gobuffalo/packr
+# github.com/gobuffalo/syncx v0.0.0-20181120194010-558ac7de985f
+github.com/gobuffalo/syncx
 # github.com/golang/protobuf v1.2.0
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes/timestamp
@@ -18,3 +26,13 @@ github.com/graphql-go/graphql/language/typeInfo
 github.com/heroiclabs/nakama/runtime
 github.com/heroiclabs/nakama/api
 github.com/heroiclabs/nakama/rtapi
+# github.com/joho/godotenv v1.3.0
+github.com/joho/godotenv
+# github.com/markbates/oncer v0.0.0-20181203154359-bf2de49a0be2
+github.com/markbates/oncer
+# github.com/pkg/errors v0.8.1
+github.com/pkg/errors
+# github.com/rogpeppe/go-internal v1.1.0
+github.com/rogpeppe/go-internal/modfile
+github.com/rogpeppe/go-internal/module
+github.com/rogpeppe/go-internal/semver
