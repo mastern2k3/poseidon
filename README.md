@@ -21,7 +21,7 @@ var (
 		CollectionID: "stats",
 		KeyID:        "matchesPlayed",
 		// An empty model used for unmarhalling
-		ModelFactory: func() interface{} { return new(*MatchStats) },
+		ModelFactory: func() interface{} { return new(MatchStats) },
 		// A default value for when a record does not exist
 		DefaultFactory: func() interface{} {
 			return &MatchStats{
