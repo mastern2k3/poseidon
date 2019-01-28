@@ -8,15 +8,13 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 )
 
-type NakamaHandler = func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error)
-
 type RPCRoute interface {
 	Register(init runtime.Initializer) error
 }
 
 type StringRoute struct {
 	Name    string
-	Handler NakamaHandler
+	Handler func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error)
 }
 
 func (h *StringRoute) Register(init runtime.Initializer) error {

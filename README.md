@@ -55,7 +55,7 @@ func GetMatchStats(ctx context.Context, nk runtime.NakamaModule, userIDs []strin
 }
 ```
 
-## RPC Routes
+### RPC Routes
 
 Provide json marshalling and unmarshalling for RPC requests and responses, as well as a nicer way to register an array of RPC handlers.
 
@@ -114,7 +114,7 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 }
 ```
 
-## GraphQL endpoint with bundled GraphiQL interface
+### GraphQL endpoint with bundled GraphiQL interface
 
 Provides a GraphQL endpoint and bundled GraphQL ui for easy browsing of the server data.
 

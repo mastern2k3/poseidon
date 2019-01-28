@@ -272,8 +272,8 @@ var (
 	}
 )
 
-func ConfigureRootQuery(reg func(rootQuery *graphql.Object) error) error {
-	return reg(rootQuery)
+func ConfigureRootQuery(conf func(rootQuery *graphql.Object) error) error {
+	return conf(rootQuery)
 }
 
 func RegisterGraphQL(init runtime.Initializer) error {
