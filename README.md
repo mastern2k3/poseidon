@@ -118,6 +118,10 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 
 Provides a GraphQL endpoint and bundled GraphQL ui for easy browsing of the server data.
 
-![QraphiQL UI](docs/imgs/graphiql.png)
+![GraphiQL UI](docs/imgs/graphiql.png)
 
 The UI is served on port 8090 so remember to expose it.
+
+### Live parameters
+
+Provides a set of 

@@ -259,10 +259,53 @@ var (
 					return users[0], nil
 				},
 			},
+			"globalStorage": &graphql.Field{
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(storageType))),
+				Args: graphql.FieldConfigArgument{
+					"collection": &graphql.ArgumentConfig{
+						Type: graphql.NewNonNull(graphql.String),
+					},
+				},
+				Description: "The account of the user.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					objs, _, err := nk.StorageList(p.Context, "", p.Args["collection"].(string), 10, "")
+					if err != nil {
+						return nil, err
+					}
+					return objs, nil
+				},
+			},
 		},
 	})
 
-	schemaConfig = graphql.SchemaConfig{Query: rootQuery}
+	rootMutation = graphql.NewObject(graphql.ObjectConfig{
+		Name: "RootMutation",
+		Fields: graphql.Fields{
+			"userByUsername": &graphql.Field{
+				Type: userType,
+				Args: graphql.FieldConfigArgument{
+					"username": &graphql.ArgumentConfig{
+						Type: graphql.NewNonNull(graphql.String),
+					},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					nk := p.Context.Value(GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+					usernameParam := p.Args["username"].(string)
+					users, err := nk.UsersGetUsername(p.Context, []string{usernameParam})
+					if err != nil {
+						return nil, err
+					}
+					if len(users) < 1 {
+						return nil, fmt.Errorf("no user with username `%s`", usernameParam)
+					}
+					return users[0], nil
+				},
+			},
+		},
+	})
+
+	schemaConfig = graphql.SchemaConfig{Query: rootQuery, Mutation: rootMutation}
 	schema       graphql.Schema
 )
 
@@ -274,6 +317,10 @@ var (
 
 func ConfigureRootQuery(conf func(rootQuery *graphql.Object) error) error {
 	return conf(rootQuery)
+}
+
+func ConfigureRootMutation(conf func(rootMutation *graphql.Object) error) error {
+	return conf(rootMutation)
 }
 
 func RegisterGraphQL(init runtime.Initializer) error {

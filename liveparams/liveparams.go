@@ -67,6 +67,24 @@ var (
 			return names, nil
 		},
 	}
+
+	setliveParamField = &gql.Field{
+		Description: "Sets live parameters registered in the server.",
+		Args: gql.FieldConfigArgument{
+			"name": &gql.ArgumentConfig{
+				Type: gql.NewNonNull(gql.String),
+			},
+			"newValue": &gql.ArgumentConfig{
+				Type: gql.NewNonNull(gql.String),
+			},
+		},
+		Type: gql.NewNonNull(liveParamType),
+		Resolve: func(p gql.ResolveParams) (interface{}, error) {
+			nk := p.Context.Value(graphql.GRAPHQL_CTX_NAKAMA_MODULE).(runtime.NakamaModule)
+			name, newValue := p.Args["name"].(string), p.Args["newValue"].(string)
+			return name, SetLiveParamString(p.Context, nk, name, newValue)
+		},
+	}
 )
 
 type LiveParamsModel struct {
@@ -89,10 +107,11 @@ func (r *registrar) LiveInt(name string, defaultValue int) *int {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		var err bool
-		liveValue, err = val.(int)
-		if err {
+		value, ok := val.(*int)
+		if !ok {
 			r.errors = append(r.errors, fmt.Errorf("could not produce live int `%s`, value in storage `%+v` is not castable to int", name, val))
+		} else {
+			liveValue = *value
 		}
 	}
 	liveParam := &liveValue
@@ -104,10 +123,11 @@ func (r *registrar) LiveFloat(name string, defaultValue float64) *float64 {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		var err bool
-		liveValue, err = val.(float64)
-		if err {
+		value, ok := val.(*float64)
+		if !ok {
 			r.errors = append(r.errors, fmt.Errorf("could not produce live float `%s`, value in storage `%+v` is not castable to float", name, val))
+		} else {
+			liveValue = *value
 		}
 	}
 	liveParam := &liveValue
@@ -119,10 +139,11 @@ func (r *registrar) LiveString(name string, defaultValue string) *string {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		var err bool
-		liveValue, err = val.(string)
-		if err {
+		value, ok := val.(*string)
+		if !ok {
 			r.errors = append(r.errors, fmt.Errorf("could not produce live string `%s`, value in storage `%+v` is not castable to string", name, val))
+		} else {
+			liveValue = *value
 		}
 	}
 	liveParam := &liveValue
@@ -134,10 +155,11 @@ func (r *registrar) LiveBool(name string, defaultValue bool) *bool {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		var err bool
-		liveValue, err = val.(bool)
-		if err {
+		value, ok := val.(*bool)
+		if ok {
 			r.errors = append(r.errors, fmt.Errorf("could not produce live bool `%s`, value in storage `%+v` is not castable to bool", name, val))
+		} else {
+			liveValue = *value
 		}
 	}
 	liveParam := &liveValue
@@ -153,11 +175,20 @@ func RegisterLiveParameters(ctx context.Context, nk runtime.NakamaModule, init r
 	storageParams := r.(*LiveParamsModel)
 	registrar := &registrar{storageParams.Parameters, make([]error, 0)}
 	reg(registrar)
+	if len(registrar.errors) > 0 {
+		return registrar.errors[0]
+	}
 	if err := rpc.RegisterRoutes(init, liveParametersRoutes); err != nil {
 		return err
 	}
 	if err := graphql.ConfigureRootQuery(func(rootQuery *gql.Object) error {
 		rootQuery.AddFieldConfig("liveParams", liveParamsField)
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := graphql.ConfigureRootMutation(func(rootMutation *gql.Object) error {
+		rootMutation.AddFieldConfig("setLiveParam", setliveParamField)
 		return nil
 	}); err != nil {
 		return err
@@ -184,7 +215,7 @@ func GetLiveParamString(name string) (string, error) {
 	}
 }
 
-func SetLiveParam(name string, newValue string) error {
+func SetLiveParamString(ctx context.Context, nk runtime.NakamaModule, name string, newValue string) error {
 	liveParam, has := liveParameters[name]
 	if !has {
 		return fmt.Errorf("cannot find a live parameter with name `%s`", name)
@@ -213,7 +244,9 @@ func SetLiveParam(name string, newValue string) error {
 	default:
 		return fmt.Errorf("cannot set live param of type `%T`", v)
 	}
-	return nil
+	return liveParametersAccessor.Save(ctx, nk, "", &LiveParamsModel{
+		Parameters: liveParameters,
+	})
 }
 
 type SetLiveParam_Request struct {
@@ -223,7 +256,7 @@ type SetLiveParam_Request struct {
 
 func setLiveParam(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, input interface{}) (interface{}, error) {
 	req := input.(*SetLiveParam_Request)
-	return nil, SetLiveParam(req.Name, req.NewValue)
+	return nil, SetLiveParamString(ctx, nk, req.Name, req.NewValue)
 }
 
 func GetAll(ctx context.Context, nk runtime.NakamaModule) (map[string]interface{}, error) {
