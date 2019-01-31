@@ -3,6 +3,7 @@
         "Graphi",
         "Nakama",
         "graphql",
-        "liveparams"
+        "liveparams",
+        "unmarshalling"
     ]
 }

@@ -107,11 +107,11 @@ func (r *registrar) LiveInt(name string, defaultValue int) *int {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		value, ok := val.(*int)
+		value, ok := val.(float64)
 		if !ok {
-			r.errors = append(r.errors, fmt.Errorf("could not produce live int `%s`, value in storage `%+v` is not castable to int", name, val))
+			r.errors = append(r.errors, fmt.Errorf("could not produce live int `%s`, value in storage `%+v` typed `%T` is not castable to int", name, val, val))
 		} else {
-			liveValue = *value
+			liveValue = int(value)
 		}
 	}
 	liveParam := &liveValue
@@ -123,11 +123,11 @@ func (r *registrar) LiveFloat(name string, defaultValue float64) *float64 {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		value, ok := val.(*float64)
+		value, ok := val.(float64)
 		if !ok {
-			r.errors = append(r.errors, fmt.Errorf("could not produce live float `%s`, value in storage `%+v` is not castable to float", name, val))
+			r.errors = append(r.errors, fmt.Errorf("could not produce live float `%s`, value in storage `%+v` typed `%T` is not castable to float", name, val, val))
 		} else {
-			liveValue = *value
+			liveValue = value
 		}
 	}
 	liveParam := &liveValue
@@ -139,11 +139,11 @@ func (r *registrar) LiveString(name string, defaultValue string) *string {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		value, ok := val.(*string)
+		value, ok := val.(string)
 		if !ok {
-			r.errors = append(r.errors, fmt.Errorf("could not produce live string `%s`, value in storage `%+v` is not castable to string", name, val))
+			r.errors = append(r.errors, fmt.Errorf("could not produce live string `%s`, value in storage `%+v` typed `%T` is not castable to string", name, val, val))
 		} else {
-			liveValue = *value
+			liveValue = value
 		}
 	}
 	liveParam := &liveValue
@@ -155,11 +155,11 @@ func (r *registrar) LiveBool(name string, defaultValue bool) *bool {
 	liveValue := defaultValue
 	val, has := r.storageValues[name]
 	if has {
-		value, ok := val.(*bool)
+		value, ok := val.(bool)
 		if ok {
-			r.errors = append(r.errors, fmt.Errorf("could not produce live bool `%s`, value in storage `%+v` is not castable to bool", name, val))
+			r.errors = append(r.errors, fmt.Errorf("could not produce live bool `%s`, value in storage `%+v` typed `%T` is not castable to bool", name, val, val))
 		} else {
-			liveValue = *value
+			liveValue = value
 		}
 	}
 	liveParam := &liveValue
