@@ -8,7 +8,7 @@ import (
 	mk "github.com/golang/mock/gomock"
 	"github.com/heroiclabs/nakama/runtime"
 
-	"regnaros/server/tests/mocks"
+	"github.com/mastern2k3/poseidon/tests/mocks"
 )
 
 var (
