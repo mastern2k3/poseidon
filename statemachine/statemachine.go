@@ -9,6 +9,15 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 )
 
+type TimeoutExpiredError struct {
+	TimeoutTime, ErrorInstant time.Time
+	ExpiredState              *StateDef
+}
+
+func (e *TimeoutExpiredError) Error() string {
+	return fmt.Sprintf(`state "%s" with timeout at %s expired at %s`, e.ExpiredState.Name, e.TimeoutTime, e.ErrorInstant)
+}
+
 type stateAction interface {
 	apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error)
 }
@@ -38,6 +47,12 @@ func (a TransitionTo) apply(ctx context.Context, sm *StateMachine, logger runtim
 	}
 
 	sm.CurrentState = target
+	if sm.CurrentState.Timeout != 0 {
+		expireTime := time.Now().Add(sm.CurrentState.Timeout)
+		sm.currentMeta.expireTime = &expireTime
+	} else {
+		sm.currentMeta.expireTime = nil
+	}
 
 	if target.OnEnter != nil {
 		logger.Debug("OnEnter on state `%s`", target.Name)
@@ -69,7 +84,7 @@ type StateDef struct {
 	OnEnter func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData)
 	OnLoop  func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) stateAction
 	OnExit  func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData)
-	Timeout *time.Duration
+	Timeout time.Duration
 }
 
 type TransitionDef struct {
@@ -83,8 +98,11 @@ type fromToKey struct {
 
 type StateMachine struct {
 	CurrentState *StateDef
-	states       map[string]*StateDef
-	transitions  map[fromToKey]*TransitionDef
+	currentMeta  struct {
+		expireTime *time.Time
+	}
+	states      map[string]*StateDef
+	transitions map[fromToKey]*TransitionDef
 }
 
 func NewStateMachine(states []*StateDef, transitions []*TransitionDef) *StateMachine {
@@ -113,6 +131,16 @@ func NewStateMachine(states []*StateDef, transitions []*TransitionDef) *StateMac
 }
 
 func (sm *StateMachine) Loop(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
+
+	if sm.currentMeta.expireTime != nil {
+		if now := time.Now(); sm.currentMeta.expireTime.Before(now) {
+			return nil, &TimeoutExpiredError{
+				ErrorInstant: now,
+				TimeoutTime:  *sm.currentMeta.expireTime,
+				ExpiredState: sm.CurrentState,
+			}
+		}
+	}
 
 	action := sm.CurrentState.OnLoop(ctx, logger, db, nk, dispatcher, tick, state, messages)
 
