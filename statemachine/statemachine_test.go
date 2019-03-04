@@ -45,6 +45,11 @@ var (
 			logger.Info("OnTransition :D")
 		},
 	}
+
+	sm = NewStateMachine(
+		[]*StateDef{initState, nextState, nextWithTimeout},
+		[]*TransitionDef{initToNext},
+	)
 )
 
 type statemachineTestContextKey string
@@ -53,36 +58,33 @@ const (
 	firstState statemachineTestContextKey = "first_state"
 )
 
-func makeStateMachine() *StateMachine {
-	return NewStateMachine(
-		[]*StateDef{initState, nextState, nextWithTimeout},
-		[]*TransitionDef{initToNext},
-	)
+func assertCurrentStateName(t *testing.T, s State, expected string) {
+	sd := s.State()
+	if sd.CurrentState.Name != expected {
+		t.Fatalf(`expected current state to be "%s" but was "%s"`, expected, sd.CurrentState.Name)
+	}
 }
 
-func assertCurrentStateName(t *testing.T, sm *StateMachine, expected string) {
-	if sm.CurrentState.Name != expected {
-		t.Fatalf(`expected current state to be "%s" but was "%s"`, expected, sm.CurrentState.Name)
-	}
+type testState struct {
+	StateData
 }
 
 func TestTransitionTo(t *testing.T) {
 
-	sm := makeStateMachine()
-	someState := "test"
+	someState := &testState{}
 	ctrl := mk.NewController(t)
 	logger := mocks.WithTestLogging(mocks.NewMockLogger(ctrl), t)
 	ctx := context.Background()
 
-	newState, err := sm.Loop(ctx, logger, nil, nil, nil, 0, someState, nil)
+	newState, err := sm.Loop(ctx, someState, logger, nil, nil, nil, 0, someState, nil)
 	if err != nil {
 		t.Fatalf("error while looping state machine: %s", err)
 	}
-	someState = newState.(string)
+	someState = newState.(*testState)
 
-	assertCurrentStateName(t, sm, nextState.Name)
+	assertCurrentStateName(t, someState, nextState.Name)
 
-	newState, err = sm.Loop(ctx, logger, nil, nil, nil, 0, someState, nil)
+	newState, err = sm.Loop(ctx, someState, logger, nil, nil, nil, 0, someState, nil)
 	if err != nil {
 		t.Fatalf("error while looping state machine: %s", err)
 	}
@@ -93,31 +95,30 @@ func TestTransitionTo(t *testing.T) {
 
 func TestTransitionToWithTimeout(t *testing.T) {
 
-	sm := makeStateMachine()
-	someState := "test"
+	someState := &testState{}
 	ctrl := mk.NewController(t)
 	logger := mocks.WithTestLogging(mocks.NewMockLogger(ctrl), t)
 	ctx := context.WithValue(context.Background(), firstState, nextWithTimeout.Name)
 
-	newState, err := sm.Loop(ctx, logger, nil, nil, nil, 0, someState, nil)
+	newState, err := sm.Loop(ctx, someState, logger, nil, nil, nil, 0, someState, nil)
 	if err != nil {
 		t.Fatalf("error while looping state machine: %s", err)
 	}
-	someState = newState.(string)
+	someState = newState.(*testState)
 
-	assertCurrentStateName(t, sm, nextWithTimeout.Name)
+	assertCurrentStateName(t, someState, nextWithTimeout.Name)
 
-	newState, err = sm.Loop(ctx, logger, nil, nil, nil, 0, someState, nil)
+	newState, err = sm.Loop(ctx, someState, logger, nil, nil, nil, 0, someState, nil)
 	if err != nil {
 		t.Fatalf("error while looping state machine: %s", err)
 	}
-	someState = newState.(string)
+	someState = newState.(*testState)
 
-	assertCurrentStateName(t, sm, nextWithTimeout.Name)
+	assertCurrentStateName(t, someState, nextWithTimeout.Name)
 
 	time.Sleep(time.Second * 1)
 
-	newState, err = sm.Loop(ctx, logger, nil, nil, nil, 0, someState, nil)
+	newState, err = sm.Loop(ctx, someState, logger, nil, nil, nil, 0, someState, nil)
 	if err == nil {
 		t.Fatalf("expected error while looping state machine, got nil")
 	}

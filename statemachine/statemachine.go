@@ -9,6 +9,11 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 )
 
+const (
+	InitialStateName = "init"
+)
+
+// TimeoutExpiredError is returned from StateMachine's Loop when the timeout duration defined on a StateDef expires
 type TimeoutExpiredError struct {
 	TimeoutTime, ErrorInstant time.Time
 	ExpiredState              *StateDef
@@ -19,65 +24,8 @@ func (e *TimeoutExpiredError) Error() string {
 }
 
 type stateAction interface {
-	apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error)
+	apply(ctx context.Context, s State, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error)
 }
-
-type TransitionTo struct {
-	Target string
-}
-
-func (a TransitionTo) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
-
-	logger.Info("state transition from state `%s` to `%s`", sm.CurrentState.Name, a.Target)
-
-	if sm.CurrentState.OnExit != nil {
-		logger.Debug("OnExit on state `%s`", sm.CurrentState.Name)
-		sm.CurrentState.OnExit(ctx, logger, db, nk, dispatcher, tick, state, messages)
-	}
-
-	transition, has := sm.transitions[fromToKey{sm.CurrentState.Name, a.Target}]
-	if has {
-		logger.Debug("OnTransition from: `%s` to: `%s`", sm.CurrentState.Name, a.Target)
-		transition.OnTransition(ctx, logger, db, nk, dispatcher, tick, state, messages)
-	}
-
-	target, has := sm.states[a.Target]
-	if !has {
-		panic(fmt.Sprintf("attempt transition to nonexistant state `%s`", a.Target))
-	}
-
-	sm.CurrentState = target
-	if sm.CurrentState.Timeout != 0 {
-		expireTime := time.Now().Add(sm.CurrentState.Timeout)
-		sm.currentMeta.expireTime = &expireTime
-	} else {
-		sm.currentMeta.expireTime = nil
-	}
-
-	if target.OnEnter != nil {
-		logger.Debug("OnEnter on state `%s`", target.Name)
-		target.OnEnter(ctx, logger, db, nk, dispatcher, tick, state, messages)
-	}
-
-	return state, nil
-}
-
-type terminateAction struct{}
-
-func (a terminateAction) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
-	return nil, nil
-}
-
-type stayAction struct{}
-
-func (a stayAction) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
-	return state, nil
-}
-
-var (
-	Terminate = terminateAction{}
-	Stay      = stayAction{}
-)
 
 type StateDef struct {
 	Name    string
@@ -96,15 +44,25 @@ type fromToKey struct {
 	from, to string
 }
 
-type StateMachine struct {
+type State interface {
+	State() *StateData
+}
+
+type StateData struct {
 	CurrentState *StateDef
-	currentMeta  struct {
-		expireTime *time.Time
-	}
+	ExpireTime   *time.Time
+}
+
+func (s *StateData) State() *StateData {
+	return s
+}
+
+type StateMachine struct {
 	states      map[string]*StateDef
 	transitions map[fromToKey]*TransitionDef
 }
 
+// NewStateMachine creates a StateMachine
 func NewStateMachine(states []*StateDef, transitions []*TransitionDef) *StateMachine {
 
 	new := &StateMachine{
@@ -120,29 +78,32 @@ func NewStateMachine(states []*StateDef, transitions []*TransitionDef) *StateMac
 		new.transitions[fromToKey{transition.From, transition.To}] = transition
 	}
 
-	init, has := new.states["init"]
-	if !has {
-		panic(`state machine must include "init" state`)
+	if _, has := new.states[InitialStateName]; !has {
+		panic(fmt.Sprintf(`state machine must include StateDef with name "%s"`, InitialStateName))
 	}
-
-	new.CurrentState = init
 
 	return new
 }
 
-func (sm *StateMachine) Loop(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
+func (sm *StateMachine) Loop(ctx context.Context, st State, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
 
-	if sm.currentMeta.expireTime != nil {
-		if now := time.Now(); sm.currentMeta.expireTime.Before(now) {
+	s := st.State()
+
+	if s.CurrentState == nil {
+		s.CurrentState = sm.states[InitialStateName]
+	}
+
+	if s.ExpireTime != nil {
+		if now := time.Now(); s.ExpireTime.Before(now) {
 			return nil, &TimeoutExpiredError{
 				ErrorInstant: now,
-				TimeoutTime:  *sm.currentMeta.expireTime,
-				ExpiredState: sm.CurrentState,
+				TimeoutTime:  *s.ExpireTime,
+				ExpiredState: s.CurrentState,
 			}
 		}
 	}
 
-	action := sm.CurrentState.OnLoop(ctx, logger, db, nk, dispatcher, tick, state, messages)
+	action := s.CurrentState.OnLoop(ctx, logger, db, nk, dispatcher, tick, state, messages)
 
-	return action.apply(ctx, sm, logger, db, nk, dispatcher, tick, state, messages)
+	return action.apply(ctx, s, sm, logger, db, nk, dispatcher, tick, state, messages)
 }
