@@ -15,7 +15,7 @@ var (
 	initState = &StateDef{
 		Name: "init",
 		OnLoop: func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) stateAction {
-			return TransitionTo{"next", nil}
+			return TransitionTo{"next"}
 		},
 	}
 

@@ -9,19 +9,54 @@ import (
 	"github.com/heroiclabs/nakama/runtime"
 )
 
-type stateAction interface{}
+type stateAction interface {
+	apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error)
+}
 
 type TransitionTo struct {
 	Target string
-	stateAction
 }
 
-type terminateAction struct {
-	stateAction
+func (a TransitionTo) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
+
+	logger.Info("state transition from state `%s` to `%s`", sm.CurrentState.Name, a.Target)
+
+	if sm.CurrentState.OnExit != nil {
+		logger.Debug("OnExit on state `%s`", sm.CurrentState.Name)
+		sm.CurrentState.OnExit(ctx, logger, db, nk, dispatcher, tick, state, messages)
+	}
+
+	transition, has := sm.transitions[fromToKey{sm.CurrentState.Name, a.Target}]
+	if has {
+		logger.Debug("OnTransition from: `%s` to: `%s`", sm.CurrentState.Name, a.Target)
+		transition.OnTransition(ctx, logger, db, nk, dispatcher, tick, state, messages)
+	}
+
+	target, has := sm.states[a.Target]
+	if !has {
+		panic(fmt.Sprintf("attempt transition to nonexistant state `%s`", a.Target))
+	}
+
+	sm.CurrentState = target
+
+	if target.OnEnter != nil {
+		logger.Debug("OnEnter on state `%s`", target.Name)
+		target.OnEnter(ctx, logger, db, nk, dispatcher, tick, state, messages)
+	}
+
+	return state, nil
 }
 
-type stayAction struct {
-	stateAction
+type terminateAction struct{}
+
+func (a terminateAction) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
+	return nil, nil
+}
+
+type stayAction struct{}
+
+func (a stayAction) apply(ctx context.Context, sm *StateMachine, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) (interface{}, error) {
+	return state, nil
 }
 
 var (
@@ -81,37 +116,5 @@ func (sm *StateMachine) Loop(ctx context.Context, logger runtime.Logger, db *sql
 
 	action := sm.CurrentState.OnLoop(ctx, logger, db, nk, dispatcher, tick, state, messages)
 
-	switch a := action.(type) {
-	case TransitionTo:
-
-		logger.Info("state transition from state `%s` to `%s`", sm.CurrentState.Name, a.Target)
-
-		if sm.CurrentState.OnExit != nil {
-			logger.Debug("OnExit on state `%s`", sm.CurrentState.Name)
-			sm.CurrentState.OnExit(ctx, logger, db, nk, dispatcher, tick, state, messages)
-		}
-
-		transition, has := sm.transitions[fromToKey{sm.CurrentState.Name, a.Target}]
-		if has {
-			logger.Debug("OnTransition from: `%s` to: `%s`", sm.CurrentState.Name, a.Target)
-			transition.OnTransition(ctx, logger, db, nk, dispatcher, tick, state, messages)
-		}
-
-		target, has := sm.states[a.Target]
-		if !has {
-			panic(fmt.Sprintf("attempt transition to nonexistant state `%s`", a.Target))
-		}
-
-		sm.CurrentState = target
-
-		if target.OnEnter != nil {
-			logger.Debug("OnEnter on state `%s`", target.Name)
-			target.OnEnter(ctx, logger, db, nk, dispatcher, tick, state, messages)
-		}
-
-	case terminateAction:
-		return nil, nil
-	}
-
-	return state, nil
+	return action.apply(ctx, sm, logger, db, nk, dispatcher, tick, state, messages)
 }
