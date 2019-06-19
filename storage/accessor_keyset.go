@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/heroiclabs/nakama/api"
 	"github.com/heroiclabs/nakama/runtime"
@@ -96,8 +95,6 @@ func (acc *KeysetCollectionAccessor) SaveList(ctx context.Context, nk runtime.Na
 			Value:      string(bytes),
 		})
 	}
-
-	fmt.Printf("nk.StorageWrite %v", writes)
 
 	_, err := nk.StorageWrite(ctx, writes)
 
