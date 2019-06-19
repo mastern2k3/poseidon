@@ -18,7 +18,20 @@ type StringRoute struct {
 }
 
 func (h *StringRoute) Register(init runtime.Initializer) error {
-	return init.RegisterRpc(h.Name, h.Handler)
+	return init.RegisterRpc(
+		h.Name,
+		func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, input string) (string, error) {
+
+			output, err := h.Handler(ctx, logger, db, nk, input)
+
+			if err != nil {
+				logger.Error("error while handling `%s`: %s", h.Name, err)
+				return "", err
+			}
+
+			return output, nil
+		},
+	)
 }
 
 type JsonRoute struct {
@@ -28,32 +41,36 @@ type JsonRoute struct {
 }
 
 func (h *JsonRoute) Register(init runtime.Initializer) error {
-	return init.RegisterRpc(h.Name, func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, inputJson string) (string, error) {
+	return init.RegisterRpc(
+		h.Name,
+		func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, inputJson string) (string, error) {
 
-		var inputModel interface{}
+			var inputModel interface{}
 
-		if h.InputModel != nil {
-			inputModel = h.InputModel()
+			if h.InputModel != nil {
+				inputModel = h.InputModel()
 
-			if err := json.Unmarshal([]byte(inputJson), inputModel); err != nil {
+				if err := json.Unmarshal([]byte(inputJson), inputModel); err != nil {
+					return "", err
+				}
+			}
+
+			outputModel, err := h.Handler(ctx, logger, db, nk, inputModel)
+
+			if err != nil {
+				logger.Error("error while handling `%s`: %s", h.Name, err)
 				return "", err
 			}
-		}
 
-		outputModel, err := h.Handler(ctx, logger, db, nk, inputModel)
+			bytes, err := json.Marshal(outputModel)
 
-		if err != nil {
-			return "", err
-		}
+			if err != nil {
+				return "", err
+			}
 
-		bytes, err := json.Marshal(outputModel)
-
-		if err != nil {
-			return "", err
-		}
-
-		return string(bytes), nil
-	})
+			return string(bytes), nil
+		},
+	)
 }
 
 func RegisterRoutes(init runtime.Initializer, routes []RPCRoute) error {
