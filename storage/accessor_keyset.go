@@ -28,9 +28,12 @@ func (acc *KeysetCollectionAccessor) Get(ctx context.Context, nk runtime.NakamaM
 		if err != nil {
 			return nil, err
 		}
-		if newCur == "" {
+
+		if newCur == "" || newCur == lastCursor {
 			break
 		}
+
+		lastCursor = newCur
 		allObjs = append(allObjs, objs...)
 	}
 
@@ -107,37 +110,19 @@ func (acc *KeysetCollectionAccessor) SaveList(ctx context.Context, nk runtime.Na
 
 func (acc *KeysetCollectionAccessor) GetList(ctx context.Context, nk runtime.NakamaModule, userIDs []string) (map[string][]KeyedValue, error) {
 
-	var reads []*runtime.StorageRead
+	resp := map[string][]KeyedValue{}
 
 	for _, userID := range userIDs {
-		reads = append(reads, &runtime.StorageRead{
-			UserID:     userID,
-			Collection: acc.CollectionID,
-		})
-	}
 
-	objs, err := nk.StorageRead(ctx, reads)
-
-	if err != nil {
-		return nil, err
-	}
-
-	responses := map[string][]KeyedValue{}
-
-	for _, obj := range objs {
-
-		model := acc.ModelFactory()
-
-		err := json.Unmarshal([]byte(obj.GetValue()), model)
-
+		vals, err := acc.Get(ctx, nk, userID)
 		if err != nil {
 			return nil, err
 		}
 
-		responses[obj.GetUserId()] = append(responses[obj.GetUserId()], KeyedValue{obj.Key, model})
+		resp[userID] = vals
 	}
 
-	return responses, nil
+	return resp, nil
 }
 
 func (acc *KeysetCollectionAccessor) Delete(ctx context.Context, nk runtime.NakamaModule, key string, userID string) error {
